@@ -1,0 +1,19 @@
+[project]
+name = "scms"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Abdullah-1121", email = "muhmmad11abdullah21@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "openai-agents>=0.1.0",
+]
+
+[project.scripts]
+scms = "scms:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
