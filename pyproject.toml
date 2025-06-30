@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "langsmith>=0.4.4",
     "openai-agents>=0.1.0",
 ]
 
