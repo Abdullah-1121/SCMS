@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List
 from scms.models.inventory import dummy_inventory , InventoryItem
 
@@ -9,7 +10,17 @@ def low_stock_items(inventory: List[InventoryItem] ):
     low_stock_items = [item for item in inventory if item.stock_level < item.reorder_threshold]
     return low_stock_items
 
-# # Example usage
-# low_stock_items =low_stock_items(dummy_inventory)
-# for item in low_stock_items:
-#     print(f"Low stock item: {item.name} (ID: {item.item_id}) - Stock Level: {item.stock_level}, Reorder Threshold: {item.reorder_threshold}")
+# def generate_purchase_order(items:List[InventoryItem] ):
+#     # In the Real Application , we will use a database query to generate purchase order
+#     purchase_orders = []
+#     for item in items:
+#         purchase_order = {
+#             "order_id": f"PO-{item.item_id}",
+#             "item_id": item.item_id,
+#             "quantity": item.stock_level,
+#             "supplier": item.supplier,
+#             "order_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+#             "status": "Pending"
+#         }
+#         purchase_orders.append(purchase_order)
+#     return purchase_orders

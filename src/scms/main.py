@@ -14,9 +14,9 @@ from typing import Any, List
 from agents.extensions import handoff_filters
 from pydantic import BaseModel
 from scms.tools.tools import low_stock_items
-from scms.models.inventory import InventoryAgentOutput , SupplyChainContext , InventoryItem
+from scms.models.inventory import InventoryAgentOutput , SupplyChainContext , InventoryItem , PurchaseOrder
 from scms.instructions.instructions import inventory_agent_instructions
-
+import uuid
 
 # Load environment variables from .env file
 load_dotenv()
@@ -49,14 +49,17 @@ config = RunConfig(
 )
 class CustomHooks(AgentHooks):
     async def on_start(self, context: RunContextWrapper[SupplyChainContext], agent: Agent[SupplyChainContext]):
-        print(f"Starting agent: {agent.name} ")
+        print(f"--------------------------------Starting agent: {agent.name}------------------------------------ ")
     async def on_tool_start(self, context: RunContextWrapper[SupplyChainContext], agent: Agent[SupplyChainContext], tool: Tool):
-        print(f"{agent.name} is starting tool: {tool.name}")
+        print(f"-------------------------------{agent.name} is starting tool: {tool.name}-----------------------")
     async def on_tool_end(self, context: RunContextWrapper[SupplyChainContext], agent: Agent[SupplyChainContext], tool: Tool, result: str):
-        print(f" {agent.name} has completed tool: {tool.name} with result: {result}")
+        print(f"------------------------------ {agent.name} has completed tool: {tool.name}----------------------with result: {result}----------------------------")
 
-    async def on_end(self, run_context: RunContextWrapper[SupplyChainContext], agent: Agent[SupplyChainContext], output: Any):
-        print(f"{agent.name} has completed with output")
+    async def on_end(self, context: RunContextWrapper[SupplyChainContext], agent: Agent[SupplyChainContext], output: Any):
+        print(f"-------------------------------{agent.name} has completed with output----------------------------")
+        context.context.audit_trail.append(f" {agent.name} : {output}")
+
+
 
 run_hooks = CustomHooks()       
 
@@ -74,7 +77,7 @@ You have access to a tool called **`get_low_stock_items`**.
 - This tool must be used to fetch inventory items that are **below the reorder threshold**.
 - The tool accepts a list of `InventoryItem` objects, available in the context as `inventory_data`.
 
-> 🔧 **Always call the tool** `get_low_stock_items` to get the low stock items from the context.
+> 🔧 **Always call the tool** `get_low_stock_items` to get the low stock items .
 
 # Instructions:
 
@@ -102,7 +105,42 @@ This data **must be passed directly** to the tool `get_low_stock_items`.
 - No Matter Always call the tool `get_low_stock_items` and dont try to answer without calling the tool.
 
 """
+def procurement_instructions(ctx:RunContextWrapper[SupplyChainContext], agent : Agent[SupplyChainContext]):
+    return f"""
+# Role and Objective:
+You are a **Procurement Agent** in a Supply Chain Management System. Your primary responsibility is to ensure that all items flagged as low in stock are ordered from their respective suppliers.
 
+# Your Responsibilities:
+- Review the inventory analysis results available in the context.
+- Identify `low_stock_items` in the context that require reordering.
+- Generate purchase orders for these items using the tool provided.
+
+# Tool Usage:
+You MUST use the tool **`generate_purchase_orders`** to generate purchase orders.
+- Do NOT manually calculate or fabricate orders.
+- This tool takes the `low_stock_items` from the context and generates structured `PurchaseOrder` objects.
+- Each `PurchaseOrder` contains order_id, item_name, quantity_to_order, supplier, status, and timestamp.
+
+> ✅ Always call `generate_purchase_orders` to perform procurement.
+
+# Output Format:
+- Return the list of generated `PurchaseOrder` objects.
+- Do not fabricate data or guess any fields.
+- Only return what the tool generates.
+
+# Context:
+You have access to `low_stock_items`, a list of items that are below their reorder threshold.
+Each item includes:
+- item_id, name, stock_level, reorder_threshold, supplier, last_updated.
+Here is the list of low stock items:
+{ctx.context.low_stock_items}
+
+# Important:
+- Do not attempt to generate orders manually.
+- Always rely on `generate_purchase_orders`.
+- If no low stock items are found, confirm no purchase orders were created.
+
+"""
 
 @function_tool(description_override="Get low stock items from the inventory ",)
 def get_low_stock_items(ctx:RunContextWrapper[SupplyChainContext]):
@@ -117,11 +155,47 @@ def get_low_stock_items(ctx:RunContextWrapper[SupplyChainContext]):
     '''
     print('[DEBUG] Analyzing inventory data for low stock items...' , ctx.context.inventory_data)
     inventory_data = low_stock_items(ctx.context.inventory_data)
-    print('[DEBUG] Low stock items:', inventory_data)
-    print(inventory_data)
+    # print('[DEBUG] Low stock items:', inventory_data)
+    # print(inventory_data)
     if not inventory_data:
         print("No low stock items found.")
-    return f'''The following items are below the reorder threshold: {inventory_data}'''
+    else :
+        ctx.context.low_stock_items = inventory_data
+        return InventoryAgentOutput(low_stock_items=inventory_data, is_reorder_required=True)
+        
+@function_tool(description_override="Generate purchase orders for low stock items")
+def generate_purchase_orders(ctx: RunContextWrapper[SupplyChainContext]):
+    """
+    Generates purchase orders for all low stock items in the context.
+    
+    Args:
+        ctx (RunContextWrapper[SupplyChainContext]): The shared supply chain context.
+
+    Returns:
+        List[PurchaseOrder]: A list of generated purchase orders.
+    """
+
+    # In a Real Application , we will get the suppliers from the database and then we will generate the purchase orders and then send them to the suppliers
+    
+    low_stock_items = ctx.context.low_stock_items
+    purchase_orders = []
+    for item in low_stock_items:
+        quantity_needed =  item.reorder_threshold
+
+        order = PurchaseOrder(
+            order_id=f"PO-{datetime.datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}",
+            item_id=item.item_id,
+            item_name=item.name,
+            quantity=quantity_needed,
+            supplier=item.supplier,
+            status="pending",
+            order_date=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        )
+        purchase_orders.append(order)
+
+    ctx.context.purchase_orders = purchase_orders
+    return purchase_orders
+    
 
 
 @function_tool
@@ -143,16 +217,28 @@ inventory_analyzer_agent = Agent[SupplyChainContext](
     model_settings=ModelSettings(
         temperature = 0.3,
     ),
+    tool_use_behavior="stop_on_first_tool",
     # output_type=InventoryAgentOutput,
     hooks=run_hooks
 )
+
+procurement_agent = Agent[SupplyChainContext](
+    name="Procurement Agent",
+    instructions=procurement_instructions,
+    tools=[generate_purchase_orders],
+    model_settings=ModelSettings(
+        temperature=0.3,
+    ),
+    hooks=run_hooks
+)
+
 
 async def run_agent():
     data=[
     InventoryItem(
         item_id="A101",
         name="Laptop - Dell XPS 13",
-        stock_level=8,
+        stock_level=11,
         reorder_threshold=10,
         supplier="Dell",
         last_updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") 
@@ -176,7 +262,7 @@ async def run_agent():
     InventoryItem(
         item_id="D980",
         name="USB-C Docking Station - Anker",
-        stock_level=9,
+        stock_level=2,
         reorder_threshold=10,
         supplier="Anker",
         last_updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -184,7 +270,7 @@ async def run_agent():
     InventoryItem(
         item_id="E558",
         name="External Hard Drive - Seagate 2TB",
-        stock_level=4,
+        stock_level=11,
         reorder_threshold=8,
         supplier="Seagate",
         last_updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") 
@@ -195,15 +281,25 @@ async def run_agent():
         session_id="abc-123",
         inventory_data=data,
     )
-    result = await Runner.run(
+    inventory_result = await Runner.run(
         starting_agent=inventory_analyzer_agent,
           input=f'Analyze the inventory data and determine if any items need to be reordered. use the get_low_stock_items tool to get the low stock items', context=run_context, run_config=config)
+    print(f"=========================Inventory Analysis Result================================")
+    print(inventory_result.final_output)
+    if run_context.low_stock_items:
+        print(f"----------------------------------Low stock items identified---------------------------------------")
+        print(f"----------------------------------Generating purchase orders---------------------------------------")
+        purchase_orders = await Runner.run(
+            starting_agent=procurement_agent,
+            input=f'Generate purchase orders for the following low stock items present in the context using the tools generate_purchase_orders. ',
+            context=run_context,
+            run_config=config
+        )
+        print(f"----------------------------------Purchase orders generated---------------------------------------")
+        print(purchase_orders.final_output)
+    print(run_context)    
 
-    inventory_data = result.final_output
-    low_stock_items = result.final_output_as(InventoryAgentOutput)
-    # print(inventory_data)
-    # print(low_stock_items)
-    print('Casting the output to InventoryAgentOutput' , low_stock_items)
+    
     
 if __name__ == "__main__":
     

@@ -89,3 +89,12 @@ class SupplyChainContext(BaseModel):
     sla_violations: List[str] = Field(default_factory=list)
     # Status & Logs
     audit_trail: List[str] = Field(default_factory=list)
+
+class PurchaseOrder(BaseModel):
+    order_id: str = Field(... , description="Unique identifier for the purchase order")
+    item_id: str = Field(... , description="Identifier for the item being ordered")
+    quantity: int = Field(... , description="Quantity of the item to be ordered")
+    supplier: str = Field(... , description="Supplier of the item")
+    order_date: str = Field(... , description="Date when the order was placed")
+    status: str = Field(... , description="Current status of the order")
+    item_name: str = Field(... , description="Name of the item being ordered")
