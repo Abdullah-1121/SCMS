@@ -11,49 +11,6 @@ class InventoryItem(BaseModel):
     supplier: str
     last_updated: str
 
-# Dummy inventory data
-dummy_inventory: List[InventoryItem] = [
-    InventoryItem(
-        item_id="A101",
-        name="Laptop - Dell XPS 13",
-        stock_level=8,
-        reorder_threshold=10,
-        supplier="Dell",
-        last_updated='Todays date'
-    ),
-    InventoryItem(
-        item_id="B205",
-        name="Mechanical Keyboard - Logitech",
-        stock_level=50,
-        reorder_threshold=20,
-        supplier="Logitech",
-        last_updated='Todays date'
-    ),
-    InventoryItem(
-        item_id="C332",
-        name="27-inch Monitor - Samsung",
-        stock_level=3,
-        reorder_threshold=5,
-        supplier="Samsung",
-        last_updated='Todays date'
-    ),
-    InventoryItem(
-        item_id="D980",
-        name="USB-C Docking Station - Anker",
-        stock_level=15,
-        reorder_threshold=10,
-        supplier="Anker",
-        last_updated='Todays date'
-    ),
-    InventoryItem(
-        item_id="E558",
-        name="External Hard Drive - Seagate 2TB",
-        stock_level=2,
-        reorder_threshold=8,
-        supplier="Seagate",
-        last_updated='Todays date'
-    )
-]
 
 class InventoryAgentOutput(BaseModel):
     low_stock_items: List[InventoryItem]
@@ -67,11 +24,10 @@ class suppliers(BaseModel):
     last_order_date: str
 
 class metric(BaseModel):
-    metric_id: str
     name: str
     value: float
-    target_value: float
-    last_updated: str
+    unit: str
+    description: str
 
 class SupplyChainContext(BaseModel):
     user_id: str
@@ -98,3 +54,17 @@ class PurchaseOrder(BaseModel):
     order_date: str = Field(... , description="Date when the order was placed")
     status: str = Field(... , description="Current status of the order")
     item_name: str = Field(... , description="Name of the item being ordered")
+
+class RestockPlanItem(BaseModel):
+    order_id: str = Field(... , description="Unique identifier for the restock order")
+    item_id: str = Field(... , description="Identifier for the item being restocked")
+    supplier: str = Field(... , description="Supplier of the item")
+    logistics_partner: str = Field(... , description="Logistics partner handling the delivery")
+    estimated_arrival: str = Field(... , description="Estimated arrival date of the restock")
+    delivery_method: str = Field(... , description="Delivery method for the restock")
+
+class SlaViolation(BaseModel):
+    order_id: str  = Field(... , description="Unique identifier for the order associated with the SLA violation")                   
+    supplier: str  = Field(... , description="Supplier responsible for the delay")                       
+    reason: str  = Field(... , description="Reason for violation (e.g., 'Late delivery')")                        
+    reported_on: str  = Field(... , description="Date when the violation was reported")     
