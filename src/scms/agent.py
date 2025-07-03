@@ -402,8 +402,8 @@ data=[
     InventoryItem(
         item_id="C332",
         name="27-inch Monitor - Samsung",
-        stock_level=12,
-        reorder_threshold=5,
+        stock_level=10,
+        reorder_threshold=12,
         supplier="Samsung",
         last_updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") 
     ),
@@ -496,7 +496,7 @@ async def run_stream(agent: Agent, input: str, context: SupplyChainContext):
         elif event.type == "agent_updated_stream_event":
             yield f"data: 🤖 Agent: {event.new_agent.name} Started\n\n"
         elif event.type == "run_item_stream_event":
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.8)
             if event.item.type == "tool_call_item":
                 tool_names = ", ".join(
                     tool.params_json_schema["title"]

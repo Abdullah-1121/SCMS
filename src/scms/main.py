@@ -7,7 +7,7 @@ from scms.agent import agents_streaming, run_supply_chain , data
 from scms.models.inventory import SupplyChainContext
 
 app = FastAPI(
-    title="Supply Chain Management System",
+    title="AutoLogix",
     description="API for managing supply chain operations including inventory, purchase orders, and SLA violations.",
     version="1.0.0",
 )
