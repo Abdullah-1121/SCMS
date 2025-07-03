@@ -28,7 +28,9 @@ if not gemini_api_key:
     raise ValueError("GEMINI_API_KEY is not set. Please ensure it is defined in your .env file.")
 if not langsmith_api_key:
     raise ValueError("LANGSMITH_API_KEY is not set. Please ensure it is defined in your .env file.")
-trace = set_trace_processors([OpenAIAgentsTracingProcessor()])
+
+# Set up tracing with LangSmith
+set_trace_processors([OpenAIAgentsTracingProcessor()])
 
 external_client = AsyncOpenAI(
     api_key=gemini_api_key,
@@ -49,14 +51,14 @@ config = RunConfig(
 )
 class CustomHooks(AgentHooks):
     async def on_start(self, context: RunContextWrapper[SupplyChainContext], agent: Agent[SupplyChainContext]):
-        print(f"--------------------------------Starting agent: {agent.name}------------------------------------ ")
+        # print(f"--------------------------------Starting agent: {agent.name}------------------------------------ ")
+        pass
     async def on_tool_start(self, context: RunContextWrapper[SupplyChainContext], agent: Agent[SupplyChainContext], tool: Tool):
-        print(f"-------------------------------{agent.name} is starting tool: {tool.name}-----------------------")
+        pass
     async def on_tool_end(self, context: RunContextWrapper[SupplyChainContext], agent: Agent[SupplyChainContext], tool: Tool, result: str):
-        print(f"------------------------------ {agent.name} has completed tool: {tool.name}")
+        pass
 
     async def on_end(self, context: RunContextWrapper[SupplyChainContext], agent: Agent[SupplyChainContext], output: Any):
-        print(f"-------------------------------{agent.name} has completed with output----------------------------")
         context.context.audit_trail.append(f" {agent.name} : {output}")
         if(agent.name == "SLA Agent"):
             # Generate and store metrics
@@ -380,13 +382,11 @@ sla_agent = Agent[SupplyChainContext](
     ),
     hooks=run_hooks,
 )
-
-async def run_supply_chain():
-    data=[
+data=[
     InventoryItem(
         item_id="A101",
         name="Laptop - Dell XPS 13",
-        stock_level=1,
+        stock_level=12,
         reorder_threshold=10,
         supplier="Dell",
         last_updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") 
@@ -402,7 +402,7 @@ async def run_supply_chain():
     InventoryItem(
         item_id="C332",
         name="27-inch Monitor - Samsung",
-        stock_level=1,
+        stock_level=12,
         reorder_threshold=5,
         supplier="Samsung",
         last_updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") 
@@ -410,7 +410,7 @@ async def run_supply_chain():
     InventoryItem(
         item_id="D980",
         name="USB-C Docking Station - Anker",
-        stock_level=1,
+        stock_level=12,
         reorder_threshold=10,
         supplier="Anker",
         last_updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -424,6 +424,8 @@ async def run_supply_chain():
         last_updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") 
     )
 ]
+async def run_supply_chain():
+    
     run_context = SupplyChainContext(
         user_id="123",
         session_id="abc-123",
@@ -432,20 +434,20 @@ async def run_supply_chain():
     inventory_result = await Runner.run(
         starting_agent=inventory_analyzer_agent,
           input=f'Analyze the inventory data and determine if any items need to be reordered. use the get_low_stock_items tool to get the low stock items', context=run_context, run_config=config)
-    print(f"=========================Inventory Analysis Result================================")
+    # print(f"=========================Inventory Analysis Result================================")
     print(inventory_result.final_output)
     if run_context.low_stock_items:
-        print(f"----------------------------------Low stock items identified---------------------------------------")
-        print(f"----------------------------------Generating purchase orders---------------------------------------")
+        # print(f"----------------------------------Low stock items identified---------------------------------------")
+        # print(f"----------------------------------Generating purchase orders---------------------------------------")
         purchase_orders = await Runner.run(
             starting_agent=procurement_agent,
             input=f'Generate purchase orders for the following low stock items present in the context using the tools generate_purchase_orders. ',
             context=run_context,
             run_config=config
         )
-        print(f"----------------------------------Purchase orders generated---------------------------------------")
-        print(purchase_orders.final_output)
-        print(f"----------------------------------Planning logistics for purchase-----------------------------------")
+        # print(f"----------------------------------Purchase orders generated---------------------------------------")
+        # print(purchase_orders.final_output)
+        # print(f"----------------------------------Planning logistics for purchase-----------------------------------")
         
 
         logistics_plan = await Runner.run(
@@ -454,19 +456,19 @@ async def run_supply_chain():
            context=run_context,
         run_config=config
     )
-        print(f"----------------------------------Logistics plan generated---------------------------------------")
-        print(logistics_plan.final_output)
-        print(f"----------------------------------SLA Monitoring---------------------------------------")
-        sla_violations = await Runner.run(
-            starting_agent=sla_agent,
-            input=f'Check if any deliveries in the restock plan are violating SLA deadlines using the tools check_sla_violations. ',
-            context=run_context,
-            run_config=config
-        )
-        print(f"----------------------------------SLA Violations---------------------------------------")
-        print(sla_violations.final_output)
+    #     print(f"----------------------------------Logistics plan generated---------------------------------------")
+    #     print(logistics_plan.final_output)
+    #     print(f"----------------------------------SLA Monitoring---------------------------------------")
+    #     sla_violations = await Runner.run(
+    #         starting_agent=sla_agent,
+    #         input=f'Check if any deliveries in the restock plan are violating SLA deadlines using the tools check_sla_violations. ',
+    #         context=run_context,
+    #         run_config=config
+    #     )
+    #     print(f"----------------------------------SLA Violations---------------------------------------")
+    #     print(sla_violations.final_output)
 
-    print(f"----------------------------------Audit Trail---------------------------------------")
+    # print(f"----------------------------------Audit Trail---------------------------------------")
     # print(f"User ID: {run_context.user_id}")
     # print(f"Session ID: {run_context.session_id}")
     # print(f"Inventory Data: {run_context.inventory_data}")
@@ -474,11 +476,64 @@ async def run_supply_chain():
     # print(f"Purchase Orders: {run_context.purchase_orders}")
     # print(f"Logistics Plan: {run_context.restock_plan}")
     # print(f"SLA Violations: {run_context.sla_violations}")
-    for entry in enumerate(run_context.audit_trail, start=1):
-        print(f'Agent Output {entry[0]}:', entry[1])
-    return run_context    
+    # for entry in enumerate(run_context.audit_trail, start=1):
+    #     print(f'Agent Output {entry[0]}:', entry[1])
+    return run_context   
 
+async def run_stream(agent: Agent, input: str, context: SupplyChainContext):
+    """
+    Run the supply chain management process and stream the audit trail.
+    """
+    result = Runner.run_streamed(
+        starting_agent=agent,
+        input=input,
+        context=context,
+        run_config=config,
+    )
+    async for event in result.stream_events():
+        if event.type == "raw_response_event":
+            continue
+        elif event.type == "agent_updated_stream_event":
+            yield f"data: 🤖 Agent: {event.new_agent.name} Started\n\n"
+        elif event.type == "run_item_stream_event":
+            await asyncio.sleep(0.3)
+            if event.item.type == "tool_call_item":
+                tool_names = ", ".join(
+                    tool.params_json_schema["title"]
+                    for tool in event.item.agent.tools
+                )
+                yield f"data: 🛠️ {event.item.agent.name} Calling Tool: {tool_names}\n\n"
+            elif event.item.type == "tool_call_output_item":
+                yield f"data: 🛠️ {event.item.agent.name} Tool Output: {event.item.output}\n\n"
+            elif event.item.type == "message_output_item":
+                yield f"data: 💬 Output from {event.item.agent.name}:\n{ItemHelpers.text_message_output(event.item)}\n\n"
 
-if __name__ == "__main__":
-    
-    asyncio.run(run_supply_chain())
+async def agents_streaming():
+    run_context = SupplyChainContext(
+        user_id="123",
+        session_id="abc-123",
+        inventory_data=data,
+    )
+    # Run the inventory analysis agent and stream the audit trail
+
+    async for line in run_stream(agent =inventory_analyzer_agent, input = "Analyze the inventory data and determine if any items need to be reordered. use the get_low_stock_items tool to get the low stock items", context = run_context):
+        yield line
+    if run_context.low_stock_items:
+        # Run the procurement agent and stream the audit trail
+
+        async for line in run_stream(agent = procurement_agent , input = "Generate purchase orders for the following low stock items present in the context using the tools generate_purchase_orders. ", context = run_context):
+            yield line
+        # Run the logistics agent and stream the audit trail
+
+        async for line in run_stream(agent = logistics_agent , input = "Plan logistics for the following purchase orders present in the context using the tools plan_logistics. ", context = run_context):
+            yield line
+        # Run the SLA agent and stream the audit trail
+
+    # SLA Violations agent will always run even if there are no low stock items
+
+    async for line in run_stream(agent = sla_agent , input = "Check if any deliveries in the restock plan are violating SLA deadlines using the tools check_sla_violations. ", context = run_context):
+        yield line
+
+    # print(run_context.metrics , run_context.audit_trail)
+
+# asyncio.run(agents_streaming())
