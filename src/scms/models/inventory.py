@@ -12,9 +12,7 @@ class InventoryItem(BaseModel):
     last_updated: str
 
 
-class InventoryAgentOutput(BaseModel):
-    low_stock_items: List[InventoryItem]
-    is_reorder_required: bool
+
 
 class suppliers(BaseModel):
     supplier_id: str
@@ -29,22 +27,9 @@ class metric(BaseModel):
     unit: str
     description: str
 
-class SupplyChainContext(BaseModel):
-    user_id: str
-    session_id: str
-    # timestamp: datetime = Field(default_factory=datetime.now())
-    # Inventory Analysis
-    inventory_data: List[InventoryItem] = Field(default_factory=list)
+class InventoryAgentOutput(BaseModel):
     low_stock_items: List[InventoryItem] = Field(default_factory=list)
-    # Procurement Process
-    restock_plan: List[str] = Field(default_factory=list)
-    selected_suppliers: List[suppliers] = Field(default_factory=list)
-    purchase_orders: List[str] = Field(default_factory=list)
-    # Performance & SLA
-    metrics: List[metric] = Field(default_factory=list)
-    sla_violations: List[str] = Field(default_factory=list)
-    # Status & Logs
-    audit_trail: List[str] = Field(default_factory=list)
+    is_reorder_required: bool
 
 class PurchaseOrder(BaseModel):
     order_id: str = Field(... , description="Unique identifier for the purchase order")
@@ -68,3 +53,21 @@ class SlaViolation(BaseModel):
     supplier: str  = Field(... , description="Supplier responsible for the delay")                       
     reason: str  = Field(... , description="Reason for violation (e.g., 'Late delivery')")                        
     reported_on: str  = Field(... , description="Date when the violation was reported")     
+
+
+class SupplyChainContext(BaseModel):
+    user_id: str
+    session_id: str
+    # timestamp: datetime = Field(default_factory=datetime.now())
+    # Inventory Analysis
+    inventory_data: List[InventoryItem] = Field(default_factory=list)
+    low_stock_items: List[InventoryItem] = Field(default_factory=list)
+    # Procurement Process
+    restock_plan: List[str] = Field(default_factory=list)
+    selected_suppliers: List[suppliers] = Field(default_factory=list)
+    purchase_orders: List[str] = Field(default_factory=list)
+    # Performance & SLA
+    metrics: List[metric] = Field(default_factory=list)
+    sla_violations: List[str] = Field(default_factory=list)
+    # Status & Logs
+    audit_trail: List[str] = Field(default_factory=list)

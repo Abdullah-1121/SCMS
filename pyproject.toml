@@ -13,6 +13,7 @@ dependencies = [
     "openai-agents>=0.1.0",
     "psycopg2>=2.9.10",
     "sqlalchemy>=2.0.41",
+    "sqlmodel>=0.0.24",
 ]
 
 [project.scripts]

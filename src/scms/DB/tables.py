@@ -1,8 +1,8 @@
-from scms.DB.db import engine , Base
+from sqlmodel import SQLModel
+from scms.DB.db import engine 
+from scms.DB.models import SupplyChainContext , InventoryData
+def create_db_and_tables():
+    SQLModel.metadata.create_all(engine)
 
 
-try:
-    Base.metadata.create_all(bind=engine)
-    print("✅ Tables created successfully.")
-except Exception as e:
-    print(f"❌ ERROR CREATING TABLES: {e}")
+create_db_and_tables()
