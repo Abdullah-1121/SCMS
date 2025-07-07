@@ -8,7 +8,7 @@ def insert_sample_context():
     try:
         context = SupplyChainContextDB(
             user_id="user_123",
-            session_id="session_abc_123",
+            session_id="session_abc_456",
             timestamp=datetime.utcnow(),
             inventory_data=[{
                 "item_id": "item001",
