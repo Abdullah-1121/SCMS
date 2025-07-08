@@ -30,4 +30,30 @@ class InventoryData(SQLModel, table=True):
     supplier: str
     last_updated: str
 
-   
+class PurchaseOrder(SQLModel, table=True):
+    id:int | None = Field(default=None,primary_key=True)
+    order_id: str
+    item_id: str
+    quantity: int
+    supplier: str
+    order_date: str
+    status: str
+    item_name: str
+       
+
+class RestockPlanItem(SQLModel, table=True):
+    id:int | None = Field(default=None,primary_key=True)
+    order_id: str
+    item_id: str
+    supplier: str
+    logistics_partner: str
+    estimated_arrival: str
+    delivery_method: str       
+
+class SlaViolations(SQLModel, table=True):
+    id:int | None = Field(default=None,primary_key=True)
+    order_id: str
+    supplier: str
+    reason: str
+    reported_on: str
+        

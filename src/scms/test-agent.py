@@ -109,7 +109,7 @@ def get_inventory_data()->List[InventoryItem]:
 
 
 @function_tool(description_override="Get low stock items from the inventory ",)
-def get_low_stock_items(data : List[InventoryItem])->InventoryAgentOutput:
+def get_low_stock_items(ctx:RunContextWrapper[SupplyChainContext],data : List[InventoryItem])->InventoryAgentOutput:
     '''
     Analyzes the inventory data to identify items that are below the reorder threshold.
 
@@ -123,6 +123,8 @@ def get_low_stock_items(data : List[InventoryItem])->InventoryAgentOutput:
     inventory_data = low_stock_items(data)
     # print('[DEBUG] Low stock items:', inventory_data)
     # print(inventory_data)
+    ctx.context.low_stock_items = inventory_data
+    print('[DEBUG] Low stock items:', inventory_data)
     if not inventory_data:
         print("No low stock items found.")
         return InventoryAgentOutput(low_stock_items=[], is_reorder_required=False)
