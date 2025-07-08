@@ -14,7 +14,7 @@ from langsmith.wrappers import OpenAIAgentsTracingProcessor
 from typing import Any, List
 from agents.extensions import handoff_filters
 from pydantic import BaseModel
-from scms.DB.methods import fetch_inventory_items_as_pydantic, get_restock_plan , insert_purchase_orders , insert_restock_plan , get_purchase_orders, insert_sla_violations
+from scms.DB.methods import fetch_inventory_items_as_pydantic, filter_new_low_stock_items, get_restock_plan, insert_low_stock_items , insert_purchase_orders , insert_restock_plan , get_purchase_orders, insert_sla_violations
 from scms.tools.tools import generate_metrics, low_stock_items 
 from scms.models.inventory import InventoryAgentOutput, RestockPlanItem , SupplyChainContext , InventoryItem , PurchaseOrder , SlaViolation
 import uuid
@@ -228,7 +228,7 @@ You MUST use the tool `check_sla_violations` to verify SLA compliance.
 - This message will be logged in the audit trail for end-users.
 """
 @function_tool(description_override="Get the inventory data",)
-def get_inventory_data()->List[InventoryItem]:
+def get_inventory_data(ctx: RunContextWrapper[SupplyChainContext])->List[InventoryItem]:
     '''
     Fetches the inventory data from the database and returns it as a list of InventoryItem objects.
     Returns:
@@ -238,29 +238,21 @@ def get_inventory_data()->List[InventoryItem]:
     items = fetch_inventory_items_as_pydantic()
     # print(items)
     return items
-@function_tool(description_override="Get low stock items from the inventory ",)
-def get_low_stock_items(ctx:RunContextWrapper[SupplyChainContext],data : List[InventoryItem])->InventoryAgentOutput:
-    '''
-    Analyzes the inventory data to identify items that are below the reorder threshold.
-
-    Args : 
-        data (List[InventoryItem]): The inventory data as a list of InventoryItem objects.
-
-    Returns: 
-        - A list of InventoryItem objects that are below the reorder threshold if any otherwise none.
-    '''
-    print('\n \n [DEBUG] Analyzing inventory data for low stock items...' , data)
+@function_tool(description_override="Get low stock items from the inventory")
+def get_low_stock_items(ctx: RunContextWrapper[SupplyChainContext],data: List[InventoryItem]):
+    print('[DEBUG] Analyzing inventory data for low stock items...')
     inventory_data = low_stock_items(data)
-    # print('[DEBUG] Low stock items:', inventory_data)
-    # print(inventory_data)
-    ctx.context.low_stock_items = inventory_data
-    print(' \n \n [DEBUG] Low stock items:', inventory_data)
-    if not inventory_data:
-        print("No low stock items found.")
+
+    new_low_stock_items = filter_new_low_stock_items(inventory_data)
+    ctx.context.low_stock_items = new_low_stock_items
+    if not new_low_stock_items:
         return InventoryAgentOutput(low_stock_items=[], is_reorder_required=False)
-    else :
-        # print(inventory_data)
-        return InventoryAgentOutput(low_stock_items=inventory_data, is_reorder_required=True)
+
+    # Save new ones
+    insert_low_stock_items(new_low_stock_items)
+
+    return InventoryAgentOutput(low_stock_items=new_low_stock_items, is_reorder_required=True)
+
         
 @function_tool(description_override="Generate purchase orders for low stock items")
 def generate_purchase_orders(ctx: RunContextWrapper[SupplyChainContext]):
@@ -278,6 +270,8 @@ def generate_purchase_orders(ctx: RunContextWrapper[SupplyChainContext]):
     
     low_stock_items = ctx.context.low_stock_items
     purchase_orders = []
+    if not low_stock_items:
+        return f"[WARN] No low stock items in context. Skipping PO generation."
     for item in low_stock_items:
         quantity_needed =  item.reorder_threshold
 
@@ -309,7 +303,8 @@ def plan_logistics(ctx: RunContextWrapper[SupplyChainContext]):
     methods = ["standard", "express"]
 
     restock_plan = []
-
+    if not purchase_orders:
+        return f'No purchase orders found , so no restock plans were created.'
     for order in purchase_orders:
         partner = random.choice(logistics_partners)
         method = random.choice(methods)
@@ -455,56 +450,42 @@ async def run_supply_chain():
     run_context = SupplyChainContext(
         user_id="123",
         session_id="abc-123",
-        inventory_data=data,
     )
     inventory_result = await Runner.run(
         starting_agent=inventory_analyzer_agent,
-          input=f'Analyze the inventory data and determine if any items need to be reordered. use the get_low_stock_items tool to get the low stock items', context=run_context, run_config=config)
-    # print(f"=========================Inventory Analysis Result================================")
-    print(inventory_result.final_output)
-    if run_context.low_stock_items:
-        # print(f"----------------------------------Low stock items identified---------------------------------------")
-        # print(f"----------------------------------Generating purchase orders---------------------------------------")
-        purchase_orders = await Runner.run(
-            starting_agent=procurement_agent,
-            input=f'Generate purchase orders for the following low stock items present in the context using the tools generate_purchase_orders. ',
-            context=run_context,
-            run_config=config
-        )
-        # print(f"----------------------------------Purchase orders generated---------------------------------------")
-        # print(purchase_orders.final_output)
-        # print(f"----------------------------------Planning logistics for purchase-----------------------------------")
-        
-
-        logistics_plan = await Runner.run(
-           starting_agent=logistics_agent,
-           input=f'Plan logistics for the following purchase orders present in the context using the tools plan_logistics. ',
-           context=run_context,
-        run_config=config
+        input = "Analyze the inventory data using the tool get_inventory_data. first use the get_inventory_data tool to get the inventory data and then use the get_low_stock_items tool to get the low stock items. ",
+        context=run_context,
+        run_config=config,
+    
     )
-    #     print(f"----------------------------------Logistics plan generated---------------------------------------")
-    #     print(logistics_plan.final_output)
-    #     print(f"----------------------------------SLA Monitoring---------------------------------------")
-    #     sla_violations = await Runner.run(
-    #         starting_agent=sla_agent,
-    #         input=f'Check if any deliveries in the restock plan are violating SLA deadlines using the tools check_sla_violations. ',
-    #         context=run_context,
-    #         run_config=config
-    #     )
-    #     print(f"----------------------------------SLA Violations---------------------------------------")
-    #     print(sla_violations.final_output)
+    if run_context.low_stock_items:
+        procurement_result = await Runner.run(
+            starting_agent=procurement_agent,
+            input = "Generate purchase orders for the following low stock items present in the context using the tools generate_purchase_orders. ",
+            context=run_context,
+            run_config=config,
+        
+        )
+        logistics_result = await Runner.run(
+            starting_agent=logistics_agent,
+            input = "Plan logistics for the following purchase orders present in the context using the tools plan_logistics. ",
+            context=run_context,
+            run_config=config,
+        
+        )
+    sla_result = await Runner.run(
+        starting_agent=sla_agent,
+        input = "Check if any deliveries in the restock plan are violating SLA deadlines using the tools check_sla_violations. ",
+        context=run_context,
+        run_config=config,
+    
+    )    
 
-    # print(f"----------------------------------Audit Trail---------------------------------------")
-    # print(f"User ID: {run_context.user_id}")
-    # print(f"Session ID: {run_context.session_id}")
-    # print(f"Inventory Data: {run_context.inventory_data}")
-    # print(f"Low Stock Items: {run_context.low_stock_items}")
-    # print(f"Purchase Orders: {run_context.purchase_orders}")
-    # print(f"Logistics Plan: {run_context.restock_plan}")
-    # print(f"SLA Violations: {run_context.sla_violations}")
-    # for entry in enumerate(run_context.audit_trail, start=1):
-    #     print(f'Agent Output {entry[0]}:', entry[1])
-    return run_context   
+    print(inventory_result)
+    print(procurement_result)
+    print(logistics_result)
+    print(sla_result)
+    return run_context
 
 async def run_stream(agent: Agent, input: str, context: SupplyChainContext):
     """
@@ -515,6 +496,7 @@ async def run_stream(agent: Agent, input: str, context: SupplyChainContext):
         input=input,
         context=context,
         run_config=config,
+        hooks=run_hooks
     )
     async for event in result.stream_events():
         if event.type == "raw_response_event":
@@ -537,8 +519,7 @@ async def run_stream(agent: Agent, input: str, context: SupplyChainContext):
 async def agents_streaming():
     run_context = SupplyChainContext(
         user_id="123",
-        session_id="abc-123",
-        inventory_data=data,
+        session_id="abc-123"
     )
     # Run the inventory analysis agent and stream the audit trail
 
@@ -562,4 +543,4 @@ async def agents_streaming():
 
     # print(run_context.metrics , run_context.audit_trail)
 
-# asyncio.run(agents_streaming())
+asyncio.run(run_supply_chain())

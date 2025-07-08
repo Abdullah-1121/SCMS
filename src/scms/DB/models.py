@@ -5,7 +5,7 @@ from sqlmodel import SQLModel , Field
 
 
 
-class SupplyChainContext(SQLModel, table=True):
+class SupplyChainContextDB(SQLModel, table=True):
     id:int | None = Field(default=None,primary_key=True)
     user_id: str
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()), index=True)
@@ -21,7 +21,7 @@ class SupplyChainContext(SQLModel, table=True):
     audit_trail: str  # JSON list of string messages
 
 
-class InventoryData(SQLModel, table=True):
+class InventoryDataDB(SQLModel, table=True):
     id:int | None = Field(default=None,primary_key=True)
     item_id: str
     name: str
@@ -30,7 +30,7 @@ class InventoryData(SQLModel, table=True):
     supplier: str
     last_updated: str
 
-class PurchaseOrder(SQLModel, table=True):
+class PurchaseOrderDB(SQLModel, table=True):
     id:int | None = Field(default=None,primary_key=True)
     order_id: str
     item_id: str
@@ -41,7 +41,7 @@ class PurchaseOrder(SQLModel, table=True):
     item_name: str
        
 
-class RestockPlanItem(SQLModel, table=True):
+class RestockPlanItemDB(SQLModel, table=True):
     id:int | None = Field(default=None,primary_key=True)
     order_id: str
     item_id: str
@@ -50,10 +50,18 @@ class RestockPlanItem(SQLModel, table=True):
     estimated_arrival: str
     delivery_method: str       
 
-class SlaViolations(SQLModel, table=True):
+class SlaViolationsDB(SQLModel, table=True):
     id:int | None = Field(default=None,primary_key=True)
     order_id: str
     supplier: str
     reason: str
     reported_on: str
-        
+
+class LowStockItemDB(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    item_id: str = Field(index=True)
+    name: str
+    stock_level: int
+    reorder_threshold: int
+    supplier: str
+    last_updated: str  # ISO timestamp string        

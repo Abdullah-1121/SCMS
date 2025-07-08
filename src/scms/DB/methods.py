@@ -1,10 +1,11 @@
+from typing import List
 from scms.DB.db import get_session
-from scms.DB.models import InventoryData , PurchaseOrder, RestockPlanItem , SlaViolations
-from scms.models.inventory import InventoryItem , SlaViolation , PurchaseOrder
+from scms.DB.models import InventoryDataDB, LowStockItemDB , PurchaseOrderDB, RestockPlanItemDB , SlaViolationsDB
+from scms.models.inventory import InventoryItem, RestockPlanItem , SlaViolation , PurchaseOrder
 
 def fetch_inventory_items_as_pydantic():
     with get_session() as session:
-        db_items = session.query(InventoryData).all()
+        db_items = session.query(InventoryDataDB).all()
         pydantic_items = [
             InventoryItem(
                 item_id=item.item_id,
@@ -19,7 +20,7 @@ def fetch_inventory_items_as_pydantic():
         return pydantic_items
 def get_purchase_orders():
     with get_session() as session:
-        db_items = session.query(PurchaseOrder).all()
+        db_items = session.query(PurchaseOrderDB).all()
         pydantic_items = [
             PurchaseOrder(
                 order_id=item.order_id,
@@ -36,7 +37,7 @@ def get_purchase_orders():
 
 def get_restock_plan():
     with get_session() as session:
-        db_items = session.query(RestockPlanItem).all()
+        db_items = session.query(RestockPlanItemDB).all()
         pydantic_items = [
             RestockPlanItem(
                 order_id=item.order_id,
@@ -50,7 +51,19 @@ def get_restock_plan():
         ]
         return pydantic_items
             
-         
+def inventory_update(items: List[InventoryItem]):
+    with get_session() as session:
+        for item in items:
+            exists = session.query(InventoryDataDB).filter_by(item_id=item.item_id).first()
+            if not exists:
+                new_entry = InventoryDataDB(
+                    item_id=item.item_id,
+                    name=item.name,
+                    stock_level=item.stock_level,
+                    reorder_threshold=item.reorder_threshold,
+                    supplier=item.supplier,
+                    last_updated=item.last_updated
+                )         
 def insert_purchase_orders(purchase_order_list: list[dict], session_id: str):
     with get_session() as session:
         for order in purchase_order_list:
@@ -66,6 +79,26 @@ def insert_restock_plan(restock_plan_list: list[dict], session_id: str):
 def insert_sla_violations(sla_violations_list: list[dict], session_id: str):
     with get_session() as session:
         for order in sla_violations_list:        
-            session.add(SlaViolations(**order, session_id=session_id))
+            session.add(SlaViolationsDB(**order, session_id=session_id))
         session.commit()
-        
+
+def insert_low_stock_items(items: List[InventoryItem]):
+    with get_session() as session:
+        for item in items:
+            exists = session.query(LowStockItemDB).filter_by(item_id=item.item_id).first()
+            if not exists:
+                new_entry = LowStockItemDB(
+                    item_id=item.item_id,
+                    name=item.name,
+                    stock_level=item.stock_level,
+                    reorder_threshold=item.reorder_threshold,
+                    supplier=item.supplier,
+                    last_updated=item.last_updated
+                )
+                session.add(new_entry)
+        session.commit()
+def filter_new_low_stock_items(new_items: List[InventoryItem]) -> List[InventoryItem]:
+    with get_session() as session:
+        existing_ids = {item.item_id for item in session.query(LowStockItemDB.item_id).all()}
+        unique_items = [item for item in new_items if item.item_id not in existing_ids]
+        return unique_items        
