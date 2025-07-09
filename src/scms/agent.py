@@ -99,12 +99,12 @@ You have access to a tool called **`get_low_stock_items`**.
 1. **Fetch Inventory Data**
    - Call the tool `get_inventory_data` to fetch the inventory data.
    - Do **not** try to infer this manually — always use the tool.
-   - You will get a list of `InventoryItem` objects in the response.
+   
 
 
 2. **Get Low Stock Items**
-   - Call the tool `get_low_stock_items(inventory_data)` to retrieve items that need restocking.
-   - Pass the Data you get from the tool `get_inventory_data` to the tool `get_low_stock_items`.
+   - Call the tool `get_low_stock_items` to retrieve items that need restocking.
+   - Do **not** try to infer this manually — always use the tool..
 
 3. **Respond With Output Format**
     Generate a well-written, human-readable statement summarizing the results.
@@ -236,11 +236,24 @@ def get_inventory_data(ctx: RunContextWrapper[SupplyChainContext])->List[Invento
     '''
     print('\n \n[DEBUG] Fetching inventory data...')
     items = fetch_inventory_items_as_pydantic()
-    # print(items)
+    print('Type of the Inventory Items', type(items))
+    ctx.context.inventory_data = items
+    print('ITEMS \n \n',items)
     return items
 @function_tool(description_override="Get low stock items from the inventory")
-def get_low_stock_items(ctx: RunContextWrapper[SupplyChainContext],data: List[InventoryItem]):
-    print('[DEBUG] Analyzing inventory data for low stock items...')
+def get_low_stock_items(ctx: RunContextWrapper[SupplyChainContext] ):
+    '''
+
+      Analyzes the inventory data and returns a list of low stock items.
+      Args:
+          ctx (RunContextWrapper[SupplyChainContext]): The shared supply chain context.
+      Returns:
+          List[InventoryItem]: A list of low stock items as a List   
+
+    '''
+    data = ctx.context.inventory_data
+    print('[DEBUG] Inventory data received:', )
+    print('\n \n[DEBUG] Analyzing inventory data for low stock items...')
     inventory_data = low_stock_items(data)
 
     new_low_stock_items = filter_new_low_stock_items(inventory_data)
@@ -285,7 +298,7 @@ def generate_purchase_orders(ctx: RunContextWrapper[SupplyChainContext]):
             order_date=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         )
         purchase_orders.append(order)
-    db_orders = [po.dict() for po in purchase_orders]
+    db_orders = [po.model_dump() for po in purchase_orders]
     insert_purchase_orders(db_orders, ctx.context.session_id)
     ctx.context.purchase_orders = purchase_orders
     return purchase_orders
@@ -319,7 +332,7 @@ def plan_logistics(ctx: RunContextWrapper[SupplyChainContext]):
             estimated_arrival=eta,
             delivery_method=method,
         ))
-    db_plan = [rp.dict() for rp in restock_plan]
+    db_plan = [rp.model_dump() for rp in restock_plan]
     insert_restock_plan(db_plan, ctx.context.session_id)
     # Store in context
     ctx.context.restock_plan = restock_plan
@@ -453,7 +466,7 @@ async def run_supply_chain():
     )
     inventory_result = await Runner.run(
         starting_agent=inventory_analyzer_agent,
-        input = "Analyze the inventory data using the tool get_inventory_data. first use the get_inventory_data tool to get the inventory data and then use the get_low_stock_items tool to get the low stock items. ",
+        input = "Analyze the inventory using the tool get_inventory_data and then use the get_low_stock_items tool to get the low stock items",
         context=run_context,
         run_config=config,
     
@@ -481,11 +494,10 @@ async def run_supply_chain():
     
     )    
 
-    print(inventory_result)
-    print(procurement_result)
-    print(logistics_result)
-    print(sla_result)
-    return run_context
+   
+    print(run_context.low_stock_items)
+    print(run_context.audit_trail)
+
 
 async def run_stream(agent: Agent, input: str, context: SupplyChainContext):
     """

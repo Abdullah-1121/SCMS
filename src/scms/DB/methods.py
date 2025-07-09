@@ -53,27 +53,33 @@ def get_restock_plan():
             
 def inventory_update(items: List[InventoryItem]):
     with get_session() as session:
+        to_insert = []
         for item in items:
-            exists = session.query(InventoryDataDB).filter_by(item_id=item.item_id).first()
-            if not exists:
-                new_entry = InventoryDataDB(
-                    item_id=item.item_id,
-                    name=item.name,
-                    stock_level=item.stock_level,
-                    reorder_threshold=item.reorder_threshold,
-                    supplier=item.supplier,
-                    last_updated=item.last_updated
-                )         
+            if not session.query(InventoryDataDB).filter_by(item_id=item.item_id).first():
+                to_insert.append(
+                    InventoryDataDB(
+                        item_id=item.item_id,
+                        name=item.name,
+                        stock_level=item.stock_level,
+                        reorder_threshold=item.reorder_threshold,
+                        supplier=item.supplier,
+                        last_updated=item.last_updated
+                    )
+                )
+        if to_insert:
+            session.add_all(to_insert)
+            session.commit()
+
 def insert_purchase_orders(purchase_order_list: list[dict], session_id: str):
     with get_session() as session:
         for order in purchase_order_list:
-            session.add(PurchaseOrder(**order, session_id=session_id))
+            session.add(PurchaseOrderDB(**order, session_id=session_id))
         session.commit()
 
 def insert_restock_plan(restock_plan_list: list[dict], session_id: str):
     with get_session() as session:
         for order in restock_plan_list:
-            session.add(RestockPlanItem(**order, session_id=session_id))
+            session.add(RestockPlanItemDB(**order, session_id=session_id))
         session.commit()
 
 def insert_sla_violations(sla_violations_list: list[dict], session_id: str):
