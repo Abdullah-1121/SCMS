@@ -495,8 +495,7 @@ async def run_supply_chain():
     )    
 
    
-    print(run_context.low_stock_items)
-    print(run_context.audit_trail)
+    return run_context
 
 
 async def run_stream(agent: Agent, input: str, context: SupplyChainContext):
@@ -508,7 +507,6 @@ async def run_stream(agent: Agent, input: str, context: SupplyChainContext):
         input=input,
         context=context,
         run_config=config,
-        hooks=run_hooks
     )
     async for event in result.stream_events():
         if event.type == "raw_response_event":
@@ -524,9 +522,9 @@ async def run_stream(agent: Agent, input: str, context: SupplyChainContext):
                 )
                 yield f"data: 🛠️ {event.item.agent.name} Calling Tool: {tool_names}\n\n"
             elif event.item.type == "tool_call_output_item":
-                yield f"data: 🛠️ {event.item.agent.name} Tool Output: {event.item.output}\n\n"
+                yield f"data: 🛠️ {event.item.agent.name} Tool Output {event.item.output}\n\n"
             elif event.item.type == "message_output_item":
-                yield f"data: 💬 Output from {event.item.agent.name}:\n{ItemHelpers.text_message_output(event.item)}\n\n"
+                yield f"data: 💬 Output from {event.item.agent.name}\n{ItemHelpers.text_message_output(event.item)}\n\n"
 
 async def agents_streaming():
     run_context = SupplyChainContext(

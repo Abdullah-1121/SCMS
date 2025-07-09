@@ -108,3 +108,34 @@ def filter_new_low_stock_items(new_items: List[InventoryItem]) -> List[Inventory
         existing_ids = {item.item_id for item in session.query(LowStockItemDB.item_id).all()}
         unique_items = [item for item in new_items if item.item_id not in existing_ids]
         return unique_items        
+
+def get_low_stock_items():
+    with get_session() as session:
+        db_items = session.query(LowStockItemDB).all()
+        pydantic_items = [
+            InventoryItem(
+                item_id=item.item_id,
+                name=item.name,
+                stock_level=item.stock_level,
+                reorder_threshold=item.reorder_threshold,
+                supplier=item.supplier,
+                last_updated=item.last_updated
+            )
+            for item in db_items
+        ]
+        return pydantic_items
+    
+def get_sla_violations():
+    with get_session() as session:
+        db_items = session.query(SlaViolationsDB).all()
+        pydantic_items = [
+            SlaViolation(
+                item_id=item.item_id,
+                name=item.name,
+                stock_level=item.stock_level,
+                reorder_threshold=item.reorder_threshold,
+                supplier=item.supplier,
+                last_updated=item.last_updated
+            )
+            for item in db_items
+        ]    
